@@ -97,15 +97,20 @@ class NNetWrapper(NeuralNet):
                 total_loss.backward()
                 self.optimizer.step()
 
-    def predict(self, board):
+    def predict(self, board, player=0):
         """
         board: np array with board
         """
         # timing
         start = time.time()
 
+        # for another player than 0
+        if player != 0:
+            board = get_player_board(board, player, self.num_agents)
+
         # preparing input
         board = torch.FloatTensor(board.astype(np.float64))
+
         board = board.view(1, -1, self.board_r, self.board_c)
 
         if args.cuda:

@@ -40,10 +40,13 @@ class Arena():
 
             # predict players' action
             actions = []
-            pis, _ = self.nnet.predicts(board, self.rank % self.args.n_gpus)
-            for pi in pis:
-                action_num = np.random.choice(len(pi), p=pi) + 1
-                action = Action(action_num).name
+            pis, _ = self.pnet.predicts(board, self.rank % self.args.n_gpus)
+            for i, pi in enumerate(pis):
+                # this player uses nnet
+                if i == player:
+                    pi, _ = self.nnet.predict(board, player)
+
+                action = select_action(pi, prev_actions[i])
                 actions.append(action)
 
             env.step(actions)

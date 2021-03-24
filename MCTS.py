@@ -90,9 +90,8 @@ class MCTS():
         # predict players' action
         actions = []
         pis, vs = self.nnet.predicts(board, rank % self.args.n_gpus)
-        for pi in pis:
-            action_num = np.random.choice(len(pi), p=pi) + 1
-            action = Action(action_num).name
+        for i, pi in enumerate(pis):
+            action = select_action(pi, prev_actions[i])
             actions.append(action)
         v = vs[0]
 

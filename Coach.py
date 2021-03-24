@@ -57,15 +57,13 @@ def executeEpisode(env, nnet, args, rank):
         actions = []
 
         # player 0's action
-        action_num = np.random.choice(len(pi), p=pi) + 1
-        action = Action(action_num).name
+        action = select_action(pi, prev_actions[0])
         actions.append(action)
 
         # other players' action
         pis, _ = nnet.predicts(board, rank % args.n_gpus)
-        for pi in pis[1:]:
-            action_num = np.random.choice(len(pi), p=pi) + 1
-            action = Action(action_num).name
+        for i, pi in enumerate(pis[1:], 1):
+            action = select_action(pi, prev_actions[i])
             actions.append(action)
 
         obs = env.step(actions)[0].observation
@@ -105,12 +103,12 @@ class Coach():
         It then pits the new neural network against the old one and accepts it
         only if it wins >= updateThreshold fraction of games.
         """
-        # copy the model for multi-GPU training
-        self.nnet.copy_net()
-
         for i in range(1, self.args.numIters + 1):
             # bookkeeping
             log.info(f'Starting Iter #{i} ...')
+
+            # copy the model for multi-GPU training
+            self.nnet.copy_net()
 
             # examples of the iteration
             if not self.skipFirstSelfPlay or i > 1:
@@ -150,7 +148,7 @@ class Coach():
             self.nnet.train(trainExamples)
 
             # copy the model for multi-GPU training
-            self.nnet.copy_net()
+            self.pnet.copy_net()
 
             log.info('PITTING AGAINST PREVIOUS VERSION')
             avg_rwd, avg_len = playGames(self.pnet, self.nnet, self.args.arenaCompare, self.args)

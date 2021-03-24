@@ -130,6 +130,24 @@ def get_valid_moves(state, player, action_size):
     return moves
 
 
+def select_action(pi, prev_action):
+    '''
+    Args:
+        pi: np.array(4)
+        prev_action: one of 0, 1, 2, 3
+    Return:
+        action: str
+    '''
+    if prev_action is not None:
+        prev_action = str_to_action(prev_action)
+        invalid_action = Action.opposite(prev_action)
+        pi[invalid_action.value - 1] = 0
+        pi /= np.sum(pi)
+    action_num = np.random.choice(len(pi), p=pi) + 1
+    action = Action(action_num).name
+    return action
+
+
 def agent(obs, config, prev_actions=None):
     if prev_actions is None:
         try:
