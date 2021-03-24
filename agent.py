@@ -111,9 +111,9 @@ def get_reward(obs, player, num_agents):
     for i, goose in enumerate(obs.geese):
         if i == player:
             continue
-        if len(goose) > len(obs.geese[0]):
+        if len(goose) > len(obs.geese[player]):
             rank += 1
-        elif len(goose) == len(obs.geese[0]):
+        elif len(goose) == len(obs.geese[player]):
             rank += 0.5
     return (num_agents + 1 - 2 * rank) / (num_agents - 1)
 
