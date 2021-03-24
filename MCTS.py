@@ -87,9 +87,8 @@ class MCTS():
             # terminal node
             return self.Es[s]
 
-        actions = []
-
         # predict players' action
+        actions = []
         pis, vs = self.nnet.predicts(board, rank % self.args.n_gpus)
         for pi in pis:
             action_num = np.random.choice(len(pi), p=pi) + 1

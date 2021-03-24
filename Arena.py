@@ -17,40 +17,11 @@ class Arena():
         self.pnet = pnet
         self.nnet = nnet
         self.args = args
-        self.prev_actions = [None] * self.args.numAgents
-        self.cuda_num = rank % args.n_gpus
-
-    def oppo_agent(self, obs, config, prev_actions=None):
-        prev_actions = self.prev_actions
-        player = obs.index
-
-        board = get_board(obs, prev_actions, self.args)
-        board = get_player_board(board, player, self.args.numAgents)
-
-        pi, _ = self.pnet.predict(board)
-
-        # remove invalid action
-        prev_action = prev_actions[player]
-        if prev_action is not None:
-            prev_action = str_to_action(prev_action)
-            oppo_action = Action.opposite(prev_action).value
-            pi[oppo_action - 1] = 0
-            pi /= pi.sum()
-
-        action = np.argmax(pi) + 1
-        action = Action(action).name
-        prev_actions[player] = action
-        return action
+        self.rank = rank
 
     def playGame(self, player, verbose=False):
         """
         Executes one episode of a game.
-
-        Returns:
-            either
-                winner: player who won the game (1 if player1, -1 if player2)
-            or
-                draw result returned from the game that is neither 1, -1, nor 0.
         """
         env = make(
             "hungry_geese",
@@ -60,9 +31,24 @@ class Arena():
             },
             debug=False
         )
-        agents = [agent if i == player else self.oppo_agent for i in range(self.args.numAgents)]
-        agents[player].net = self.nnet
-        env.run(agents)
+        env.reset(self.args.numAgents)
+
+        prev_actions = [None] * self.args.numAgents
+
+        while env.state[player]['status'] == 'ACTIVE' and not env.done:
+            board = get_board(env.state[0].observation, prev_actions, self.args)
+
+            # predict players' action
+            actions = []
+            pis, _ = self.nnet.predicts(board, self.rank % self.args.n_gpus)
+            for pi in pis:
+                action_num = np.random.choice(len(pi), p=pi) + 1
+                action = Action(action_num).name
+                actions.append(action)
+
+            env.step(actions)
+
+            prev_actions = actions
 
         reward = get_reward(env.state[0].observation, player, self.args.numAgents)
         length = env.state[0].observation.step

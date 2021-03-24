@@ -105,15 +105,12 @@ class Coach():
         It then pits the new neural network against the old one and accepts it
         only if it wins >= updateThreshold fraction of games.
         """
-        # for parallel rollouts
-        # self.nnet.nnet.share_memory()
+        # copy the model for multi-GPU training
+        self.nnet.copy_net()
 
         for i in range(1, self.args.numIters + 1):
             # bookkeeping
             log.info(f'Starting Iter #{i} ...')
-
-            # copy the model for multi-GPU training
-            self.nnet.copy_net()
 
             # examples of the iteration
             if not self.skipFirstSelfPlay or i > 1:
@@ -148,9 +145,12 @@ class Coach():
             if os.path.exists('best.pth.tar'):
                 self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='best.pth.tar')
             else:
-                self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='best.pth.tar')
+                self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
 
             self.nnet.train(trainExamples)
+
+            # copy the model for multi-GPU training
+            self.nnet.copy_net()
 
             log.info('PITTING AGAINST PREVIOUS VERSION')
             avg_rwd, avg_len = playGames(self.pnet, self.nnet, self.args.arenaCompare, self.args)
