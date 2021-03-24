@@ -1,4 +1,4 @@
-# Alpha Zero General for Hungry Geese
+# Alpha Zero for Hungry Geese
 
 ### Requirements
 
