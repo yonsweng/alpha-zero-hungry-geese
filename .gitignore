@@ -13,3 +13,4 @@ checkpoints/
 
 .vscode
 __pycache__
+submission.py
