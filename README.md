@@ -1,14 +1,24 @@
-# Alpha Zero for Hungry Geese
+# AlphaZero for Hungry Geese
 
-### Requirements
+## Requirements
 * Python >= 3.7
 * PyTorch >= 1.7.0
 * coloredlogs
 * tqdm
 * kaggle_environments
 * requests
-### Experiments
 
-### Contributing
+## Quickstart
+### Train
+```
+python main.py
+```
+### Submit to Kaggle
+Run submit.ipynb
 
-### Contributors and Credits
+## Features
+* Data augmentation by rotating and flipping the observations
+* Multiprocessing for self-play
+* Multi-GPU use for self-play and training
+
+## Experiments
