@@ -77,10 +77,17 @@ def executeEpisode(env, nnet, args, rank):
     return [(x[0], x[1], r) for x in trainExamples]
 
 
-def rollout(rank, nnet, args, examples):
+def rollout(rank, nnet, args, examples, q):
     env = make('hungry_geese', configuration={'rows': args.boardSize[0], 'columns': args.boardSize[1]})
-    for _ in tqdm(range(args.numEps), desc="Self Play"):
+    for _ in range(args.numEps):
         examples += executeEpisode(env, nnet, args, rank)
+        q.put(1)
+
+
+def tqdm_listener(total, q):
+    pbar = tqdm(total=total, desc="Self Play")
+    for _ in iter(q.get, None):
+        pbar.update()
 
 
 class Coach():
@@ -117,7 +124,24 @@ class Coach():
                 # for parallel rollouts
                 with mp.Manager() as manager:
                     examples = manager.list()
-                    mp.spawn(rollout, args=(self.nnet, self.args, examples), nprocs=self.args.numProcesses)
+                    q = mp.Queue()
+
+                    total_steps = self.args.numProcesses * self.args.numEps
+                    tqdm_proc = mp.Process(target=tqdm_listener, args=(total_steps, q))
+                    tqdm_proc.start()
+
+                    simulators = [
+                        mp.Process(target=rollout, args=(rank, self.nnet, self.args, examples, q))
+                        for rank in range(self.args.numProcesses)
+                    ]
+                    for simulator in simulators:
+                        simulator.start()
+                    for simulator in simulators:
+                        simulator.join()
+
+                    q.put(None)
+                    tqdm_proc.join()
+
                     iterationTrainExamples.extend(list(examples))
 
                 # save the iteration examples to the history

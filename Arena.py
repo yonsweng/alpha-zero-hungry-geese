@@ -58,14 +58,21 @@ class Arena():
         return reward, length
 
 
-def playNGames(rank, arena, num, num_agents):
+def playNGames(rank, arena, num, num_agents, q):
     player = rank % num_agents
     reward, length = 0, 0
-    for _ in tqdm(range(num), desc=f"Arena.playGames ({player})"):
+    for _ in range(num):
         r, l = arena.playGame(player)
         reward += r
         length += l
+        q.put(1)
     return reward, length
+
+
+def tqdm_listener(total, q):
+    pbar = tqdm(total=total, desc="Arena.playGames")
+    for _ in iter(q.get, None):
+        pbar.update()
 
 
 def playGames(pnet, nnet, num, args, verbose=False):
@@ -81,9 +88,17 @@ def playGames(pnet, nnet, num, args, verbose=False):
     reward = 0
     length = 0
 
+    q = mp.Queue()
+    total_games = args.numProcesses * num
+    tqdm_proc = mp.Process(target=tqdm_listener, args=(total_games, q))
+    tqdm_proc.start()
+
     with mp.Pool(args.numProcesses) as p:
-        params = [(rank, Arena(pnet, nnet, args, rank), num, args.numAgents) for rank in range(args.numProcesses)]
+        params = [(rank, Arena(pnet, nnet, args, rank), num, args.numAgents, q) for rank in range(args.numProcesses)]
         rls = p.starmap(playNGames, params)
+
+    q.put(None)
+    tqdm_proc.join()
 
     for r, l in rls:
         reward += r
