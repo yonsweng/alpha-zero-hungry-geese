@@ -117,9 +117,9 @@ class NNetWrapper(NeuralNet):
             board = board.contiguous().to(device)
             # board.share_memory_()
 
-        self.cnet[device_num].eval()
+        self.cnets[device_num].eval()
         with torch.no_grad():
-            pi, v = self.cnet[device_num](board)
+            pi, v = self.cnets[device_num](board)
 
         # print('PREDICTION TIME TAKEN : {0:03f}'.format(time.time()-start))
         return F.softmax(pi, 1).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
