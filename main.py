@@ -4,6 +4,7 @@ import torch.multiprocessing as mp
 from Coach import Coach
 from hungrygeese.pytorch.NNet import NNetWrapper as nn
 from utils import *
+from args import *
 
 log = logging.getLogger(__name__)
 

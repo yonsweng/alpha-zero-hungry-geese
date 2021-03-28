@@ -1,7 +1,7 @@
 import numpy as np
 from itertools import permutations
 from kaggle_environments.envs.hungry_geese.hungry_geese import Action, adjacent_positions
-from utils import args
+from args import *
 
 
 def str_to_action(s):
