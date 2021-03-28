@@ -11,7 +11,7 @@ from tqdm import tqdm
 from kaggle_environments import make
 from kaggle_environments.envs.hungry_geese.hungry_geese import Action
 
-from Arena import Arena, playGames
+from Arena import playGames
 from MCTS import MCTS
 from agent import *
 
@@ -128,12 +128,12 @@ class Coach():
 
                     total_steps = self.args.numProcesses * self.args.numEps
                     tqdm_proc = mp.Process(target=tqdm_listener, args=(total_steps, q))
-                    tqdm_proc.start()
 
                     simulators = [
                         mp.Process(target=rollout, args=(rank, self.nnet, self.args, examples, q))
                         for rank in range(self.args.numProcesses)
                     ]
+                    tqdm_proc.start()
                     for simulator in simulators:
                         simulator.start()
                     for simulator in simulators:
