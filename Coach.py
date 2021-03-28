@@ -110,12 +110,12 @@ class Coach():
         It then pits the new neural network against the old one and accepts it
         only if it wins >= updateThreshold fraction of games.
         """
+        # copy the model for multi-GPU training
+        self.nnet.copy_net()
+
         for i in range(1, self.args.numIters + 1):
             # bookkeeping
             log.info(f'Starting Iter #{i} ...')
-
-            # copy the model for multi-GPU training
-            self.nnet.copy_net()
 
             # examples of the iteration
             if not self.skipFirstSelfPlay or i > 1:
@@ -173,6 +173,7 @@ class Coach():
 
             # copy the model for multi-GPU training
             self.pnet.copy_net()
+            self.nnet.copy_net()
 
             log.info('PITTING AGAINST PREVIOUS VERSION')
             avg_rwd, avg_len = playGames(self.pnet, self.nnet, self.args.arenaCompare, self.args)

@@ -44,7 +44,7 @@ class Arena():
             for i, pi in enumerate(pis):
                 # this player uses nnet
                 if i == player:
-                    pi, _ = self.nnet.predict(board, player)
+                    pi, _ = self.nnet.predict(board, player, self.rank % self.args.n_gpus)
 
                 action = select_action(pi, prev_actions[i])
                 actions.append(action)

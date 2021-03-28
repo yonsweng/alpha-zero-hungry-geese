@@ -96,7 +96,7 @@ class NNetWrapper(NeuralNet):
                 total_loss.backward()
                 self.optimizer.step()
 
-    def predict(self, board, player=0):
+    def predict(self, board, player=0, device_num=0):
         """
         board: np array with board
         """
@@ -113,12 +113,13 @@ class NNetWrapper(NeuralNet):
         board = board.view(1, -1, self.board_r, self.board_c)
 
         if args.cuda:
-            board = board.contiguous().cuda()
+            device = torch.device(f'cuda:{device_num}')
+            board = board.contiguous().to(device)
             # board.share_memory_()
 
-        self.nnet.eval()
+        self.cnet[device_num].eval()
         with torch.no_grad():
-            pi, v = self.nnet(board)
+            pi, v = self.cnet[device_num](board)
 
         # print('PREDICTION TIME TAKEN : {0:03f}'.format(time.time()-start))
         return F.softmax(pi, 1).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
