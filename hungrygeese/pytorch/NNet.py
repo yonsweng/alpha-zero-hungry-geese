@@ -62,14 +62,13 @@ class NNetWrapper(NeuralNet):
         examples: list of examples, each example is of form (board, pi, v)
         """
         for epoch in range(train_args.epochs):
-            print('EPOCH ::: ' + str(epoch + 1))
             self.nnet.train()
             pi_losses = AverageMeter()
             v_losses = AverageMeter()
 
             batch_count = int(len(examples) / train_args.batch_size)
 
-            t = tqdm(range(batch_count), desc='Training Net')
+            t = tqdm(range(batch_count), desc=f'Training Net ({epoch + 1})')
             for _ in t:
                 sample_ids = np.random.randint(len(examples), size=train_args.batch_size)
                 boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))

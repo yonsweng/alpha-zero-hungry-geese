@@ -58,7 +58,7 @@ class Arena():
         return reward, length
 
 
-def playNGames(rank, arena, num, num_agents, q):
+def playNGames(rank, arena, num, num_agents, rls, q):
     player = rank % num_agents
     reward, length = 0, 0
     for _ in range(num):
@@ -66,7 +66,7 @@ def playNGames(rank, arena, num, num_agents, q):
         reward += r
         length += l
         q.put(1)
-    return reward, length
+    rls.append((reward, length))
 
 
 def tqdm_listener(total, q):
@@ -88,17 +88,37 @@ def playGames(pnet, nnet, num, args, verbose=False):
     reward = 0
     length = 0
 
-    q = mp.Queue()
-    total_games = args.numProcesses * num
-    tqdm_proc = mp.Process(target=tqdm_listener, args=(total_games, q))
-    tqdm_proc.start()
+    with mp.Manager() as manager:
+        rls = manager.list()
+        q = mp.Queue()
 
-    with mp.Pool(args.numProcesses) as p:
-        params = [(rank, Arena(pnet, nnet, args, rank), num, args.numAgents, q) for rank in range(args.numProcesses)]
-        rls = p.starmap(playNGames, params)
+        total_games = args.numProcesses * num
+        tqdm_proc = mp.Process(target=tqdm_listener, args=(total_games, q))
+        tqdm_proc.start()
 
-    q.put(None)
-    tqdm_proc.join()
+        simulators = [
+            mp.Process(
+                target=playNGames,
+                args=(
+                    rank,
+                    Arena(pnet, nnet, args, rank),
+                    num,
+                    args.numAgents,
+                    rls,
+                    q
+                )
+            )
+            for rank in range(args.numProcesses)
+        ]
+        for simulator in simulators:
+            simulator.start()
+        for simulator in simulators:
+            simulator.join()
+
+        q.put(None)
+        tqdm_proc.join()
+
+        rls = list(rls)
 
     for r, l in rls:
         reward += r
