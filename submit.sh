@@ -1,1 +1,1 @@
-kaggle competitions submit -c hungry-geese -f submission.py -m "AlphaZero"
+kaggle competitions submit -c hungry-geese -f submission.py -m "AlphaZero MCTS"
