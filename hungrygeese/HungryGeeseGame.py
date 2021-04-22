@@ -28,9 +28,6 @@ class HungryGeeseGame():
     def get_init_obs(self):
         return Observation(self.env.reset(self.num_agents))
 
-    def get_board(self, obs, player):
-        return get_board
-
     def getBoardSize(self):
         return (self.config.rows, self.config.columns)
 
