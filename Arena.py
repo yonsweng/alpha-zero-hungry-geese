@@ -1,68 +1,56 @@
 import logging
-import numpy as np
 from tqdm import tqdm
-
 import torch.multiprocessing as mp
-
 from kaggle_environments import make
-from kaggle_environments.envs.hungry_geese.hungry_geese import Action
-
 from agent import *
 
 log = logging.getLogger(__name__)
 
 
-class Arena():
-    def __init__(self, pnet, nnet, args, rank):
-        self.pnet = pnet
-        self.nnet = nnet
-        self.args = args
-        self.rank = rank
+def playGame(rank, pnet, nnet, player, args):
+    """
+    Executes one episode of a game.
+    """
+    env = make(
+        "hungry_geese",
+        configuration={
+            "rows": args.boardSize[0],
+            "columns": args.boardSize[1]
+        },
+        debug=False
+    )
+    env.reset(args.numAgents)
 
-    def playGame(self, player, verbose=False):
-        """
-        Executes one episode of a game.
-        """
-        env = make(
-            "hungry_geese",
-            configuration={
-                "rows": self.args.boardSize[0],
-                "columns": self.args.boardSize[1]
-            },
-            debug=False
-        )
-        env.reset(self.args.numAgents)
+    prev_actions = [None] * args.numAgents
 
-        prev_actions = [None] * self.args.numAgents
+    while env.state[player]['status'] == 'ACTIVE' and not env.done:
+        board = get_board(env.state[0].observation, prev_actions, args)
 
-        while env.state[player]['status'] == 'ACTIVE' and not env.done:
-            board = get_board(env.state[0].observation, prev_actions, self.args)
+        # predict players' action
+        actions = []
+        pis, _ = pnet.predicts(board, rank % args.n_gpus)
+        for i, pi in enumerate(pis):
+            # this player uses nnet
+            if i == player:
+                pi, _ = nnet.predict(board, player, rank % args.n_gpus)
 
-            # predict players' action
-            actions = []
-            pis, _ = self.pnet.predicts(board, self.rank % self.args.n_gpus)
-            for i, pi in enumerate(pis):
-                # this player uses nnet
-                if i == player:
-                    pi, _ = self.nnet.predict(board, player, self.rank % self.args.n_gpus)
+            action = select_action(pi, prev_actions[i])
+            actions.append(action)
 
-                action = select_action(pi, prev_actions[i])
-                actions.append(action)
+        env.step(actions)
 
-            env.step(actions)
+        prev_actions = actions
 
-            prev_actions = actions
-
-        reward = get_reward(env.state[0].observation, player, self.args.numAgents)
-        length = env.state[0].observation.step
-        return reward, length
+    reward = get_reward(env.state[0].observation, player, args.numAgents)
+    length = env.state[0].observation.step
+    return reward, length
 
 
-def playNGames(rank, arena, num, num_agents, rls, q):
-    player = rank % num_agents
+def playNGames(rank, pnet, nnet, num, args, rls, q):
+    player = rank % args.numAgents
     reward, length = 0, 0
     for _ in range(num):
-        r, l = arena.playGame(player)
+        r, l = playGame(rank, pnet, nnet, player, args)
         reward += r
         length += l
         q.put(1)
@@ -92,24 +80,26 @@ def playGames(pnet, nnet, num, args, verbose=False):
         rls = manager.list()
         q = mp.Queue()
 
-        total_games = args.numProcesses * num
+        total_games = args.numProcessesArena * num
         tqdm_proc = mp.Process(target=tqdm_listener, args=(total_games, q))
-        tqdm_proc.start()
 
         simulators = [
             mp.Process(
                 target=playNGames,
                 args=(
                     rank,
-                    Arena(pnet, nnet, args, rank),
+                    pnet,
+                    nnet,
                     num,
-                    args.numAgents,
+                    args,
                     rls,
                     q
                 )
             )
-            for rank in range(args.numProcesses)
+            for rank in range(args.numProcessesArena)
         ]
+
+        tqdm_proc.start()
         for simulator in simulators:
             simulator.start()
         for simulator in simulators:
@@ -124,7 +114,7 @@ def playGames(pnet, nnet, num, args, verbose=False):
         reward += r
         length += l
 
-    tot_num = num * args.numProcesses
+    tot_num = num * args.numProcessesArena
     reward /= tot_num
     length /= tot_num
     return reward, length
