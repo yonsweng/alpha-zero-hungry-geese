@@ -46,7 +46,6 @@ def playGame(pnet, nnet, args, player):
     length = env.state[0].observation.step
     return reward, length
 
-
 def playGames(pnet, nnet, args):
     """
     Returns:
