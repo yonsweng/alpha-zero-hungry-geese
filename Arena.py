@@ -1,13 +1,14 @@
 import logging
-from tqdm import tqdm
 import torch.multiprocessing as mp
+from functools import partial
+from tqdm import tqdm
 from kaggle_environments import make
 from agent import *
 
 log = logging.getLogger(__name__)
 
 
-def playGame(rank, pnet, nnet, player, args):
+def playGame(pnet, nnet, args, player):
     """
     Executes one episode of a game.
     """
@@ -28,11 +29,11 @@ def playGame(rank, pnet, nnet, player, args):
 
         # predict players' action
         actions = []
-        pis, _ = pnet.predicts(board, rank % args.n_gpus)
+        pis, _ = pnet.predicts(board, player % args.n_gpus)
         for i, pi in enumerate(pis):
             # this player uses nnet
             if i == player:
-                pi, _ = nnet.predict(board, player, rank % args.n_gpus)
+                pi, _ = nnet.predict(board, player, player % args.n_gpus)
 
             action = select_action(pi, prev_actions[i])
             actions.append(action)
@@ -46,75 +47,22 @@ def playGame(rank, pnet, nnet, player, args):
     return reward, length
 
 
-def playNGames(rank, pnet, nnet, num, args, rls, q):
-    player = rank % args.numAgents
-    reward, length = 0, 0
-    for _ in range(num):
-        r, l = playGame(rank, pnet, nnet, player, args)
-        reward += r
-        length += l
-        q.put(1)
-    rls.append((reward, length))
-
-
-def tqdm_listener(total, q):
-    pbar = tqdm(total=total, desc="Arena.playGames")
-    for _ in iter(q.get, None):
-        pbar.update()
-
-
-def playGames(pnet, nnet, num, args, verbose=False):
+def playGames(pnet, nnet, args):
     """
-    Plays num games in which player1 starts num/2 games and player2 starts
-    num/2 games.
-
     Returns:
-        oneWon: games won by player1
-        twoWon: games won by player2
-        draws:  games won by nobody
+        average_reward, average_length
     """
-    reward = 0
-    length = 0
 
-    with mp.Manager() as manager:
-        rls = manager.list()
-        q = mp.Queue()
+    with mp.Pool(processes=args.numProcesses) as p:
+        func = partial(playGame, pnet, nnet, args)
+        players = list(np.arange(args.arenaCompare) % args.numAgents)
+        results = list(tqdm(p.imap(func, players), total=args.arenaCompare))
 
-        total_games = args.numProcessesArena * num
-        tqdm_proc = mp.Process(target=tqdm_listener, args=(total_games, q))
+    total_reward = 0
+    total_length = 0
 
-        simulators = [
-            mp.Process(
-                target=playNGames,
-                args=(
-                    rank,
-                    pnet,
-                    nnet,
-                    num,
-                    args,
-                    rls,
-                    q
-                )
-            )
-            for rank in range(args.numProcessesArena)
-        ]
+    for reward, length in results:
+        total_reward += reward
+        total_length += length
 
-        tqdm_proc.start()
-        for simulator in simulators:
-            simulator.start()
-        for simulator in simulators:
-            simulator.join()
-
-        q.put(None)
-        tqdm_proc.join()
-
-        rls = list(rls)
-
-    for r, l in rls:
-        reward += r
-        length += l
-
-    tot_num = num * args.numProcessesArena
-    reward /= tot_num
-    length /= tot_num
-    return reward, length
+    return total_reward / args.arenaCompare, total_length / args.arenaCompare

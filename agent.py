@@ -104,7 +104,7 @@ def get_reward(obs, player, num_agents):
     for goose in obs.geese:
         alive += 1 if len(goose) > 0 else 0
 
-    if len(obs.geese[player]) > 0 and alive >= 2 and obs.step < 199:
+    if len(obs.geese[player]) > 0 and alive >= 2 and obs.step < 198:
         return None
 
     rank = 1

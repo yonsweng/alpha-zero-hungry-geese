@@ -7,6 +7,7 @@ from collections import deque
 from pickle import Pickler, Unpickler
 from random import shuffle
 from tqdm import tqdm
+from functools import partial
 
 from kaggle_environments import make
 from kaggle_environments.envs.hungry_geese.hungry_geese import Action
@@ -18,7 +19,7 @@ from agent import *
 log = logging.getLogger(__name__)
 
 
-def executeEpisode(env, nnet, args, rank):
+def executeEpisode(nnet, args, rank):
     """
     This function executes one episode of self-play, starting with player 1.
     As the game is played, each turn is added as a training example to
@@ -34,10 +35,14 @@ def executeEpisode(env, nnet, args, rank):
                         pi is the MCTS informed policy vector, v is +1 if
                         the player eventually won the game, else -1.
     """
+
+    mcts = MCTS(nnet, args, rank)
+
     trainExamples = []
     episodeStep = 0
     prev_actions = [None] * args.numAgents
 
+    env = make('hungry_geese', configuration={'rows': args.boardSize[0], 'columns': args.boardSize[1]})
     obs = env.reset(args.numAgents)[0].observation
 
     while True:
@@ -46,7 +51,6 @@ def executeEpisode(env, nnet, args, rank):
         # temp = int(episodeStep < args.tempThreshold)
         temp = 1
 
-        mcts = MCTS(nnet, args, rank)
         pi = mcts.getActionProb(env, prev_actions[:], rank, temp)
         board = get_board(obs, prev_actions, args)
 
@@ -75,19 +79,6 @@ def executeEpisode(env, nnet, args, rank):
         prev_actions = actions
 
     return [(x[0], x[1], r) for x in trainExamples]
-
-
-def rollout(rank, nnet, args, examples, q):
-    env = make('hungry_geese', configuration={'rows': args.boardSize[0], 'columns': args.boardSize[1]})
-    for _ in range(args.numEps):
-        examples += executeEpisode(env, nnet, args, rank)
-        q.put(1)
-
-
-def tqdm_listener(total, q):
-    pbar = tqdm(total=total, desc="Self Play")
-    for _ in iter(q.get, None):
-        pbar.update()
 
 
 class Coach():
@@ -119,30 +110,15 @@ class Coach():
 
             # examples of the iteration
             if not self.skipFirstSelfPlay or i > 1:
-                iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
+                iterationTrainExamples = []
 
-                # for parallel rollouts
-                with mp.Manager() as manager:
-                    examples = manager.list()
-                    q = mp.Queue()
+                # rollout with multiprocessing
+                with mp.Pool(processes=self.args.numProcesses) as p:
+                    func = partial(executeEpisode, self.nnet, args)
+                    listOfExamples = list(tqdm(p.imap(func, range(self.args.numEps)), total=self.args.numEps))
 
-                    total_steps = self.args.numProcesses * self.args.numEps
-                    tqdm_proc = mp.Process(target=tqdm_listener, args=(total_steps, q))
-
-                    simulators = [
-                        mp.Process(target=rollout, args=(rank, self.nnet, self.args, examples, q))
-                        for rank in range(self.args.numProcesses)
-                    ]
-                    tqdm_proc.start()
-                    for simulator in simulators:
-                        simulator.start()
-                    for simulator in simulators:
-                        simulator.join()
-
-                    q.put(None)
-                    tqdm_proc.join()
-
-                    iterationTrainExamples.extend(list(examples))
+                    # unzip listOfExamples
+                    iterationTrainExamples += [example for examples in listOfExamples for example in examples]
 
                 # save the iteration examples to the history
                 self.trainExamplesHistory.append(iterationTrainExamples)
@@ -176,7 +152,7 @@ class Coach():
             self.nnet.copy_net()
 
             log.info('PITTING AGAINST PREVIOUS VERSION')
-            avg_rwd, avg_len = playGames(self.pnet, self.nnet, self.args.arenaCompare, self.args)
+            avg_rwd, avg_len = playGames(self.pnet, self.nnet, self.args)
 
             log.info('AVG REWARD : %.2f, AVG LENGTH : %.2f' % (avg_rwd, avg_len))
             if avg_rwd < self.args.updateThreshold:

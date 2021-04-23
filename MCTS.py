@@ -114,7 +114,7 @@ class MCTS():
 
             self.Vs[s] = valids
             self.Ns[s] = 0
-            return v
+            # return v
 
         if remaining == 0:
             return v
