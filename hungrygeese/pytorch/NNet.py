@@ -37,7 +37,6 @@ class NNetWrapper(NeuralNet):
         self.cnets = [GeeseNet() for _ in range(self.n_gpus)]  # on multi GPUs
 
         # for multiprocessing
-        self.nnet.share_memory()
         for cnet in self.cnets:
             cnet.share_memory()
 

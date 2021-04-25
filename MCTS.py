@@ -41,8 +41,9 @@ class MCTS():
         for i in range(self.args.numMCTSSims):
             self.search(env.clone(), prev_actions[:], self.args.maxDepth, rank)
 
-        board = get_board(env.state[0].observation, prev_actions, self.args)
-        s = board.tostring()
+        obs = env.state[0].observation
+        board = get_board(obs, prev_actions, self.args)
+        s = bytes(obs.step) + board.tostring()
         counts = [self.Nsa[(s, a)] if (s, a) in self.Nsa else 0 for a in range(self.args.actionSize)]
 
         if temp == 0:
@@ -79,7 +80,7 @@ class MCTS():
         state = env.state
         obs = state[0].observation
         board = get_board(obs, prev_actions, self.args)
-        s = board.tostring()
+        s = bytes(obs.step) + board.tostring()
 
         if s not in self.Es:
             self.Es[s] = get_reward(obs, 0, self.args.numAgents)
